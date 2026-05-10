@@ -1,0 +1,38 @@
+# configs/default_config.yaml
+data:
+  dataset_path: '/Users/egor/VS_GIT_repositories/TopologyLosses/VessMAP/'
+  image_size: 256
+  test_size: 0.2
+  val_size_from_test: 0.4
+  batch_size: 8
+  num_workers: 2
+
+model:
+  name: 'transunet'  # or 'unet', 'transunet', etc.
+  in_channels: 1
+  out_channels: 128
+  head_num: 4
+  mlp_dim: 512
+  block_num: 8
+  patch_dim: 16
+  class_num: 1
+
+training:
+  epochs: 100
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  device: 'cpu' 
+  save_checkpoints: True
+  checkpoint_dir: './checkpoints'
+  log_dir: './logs'
+
+loss:
+  segmentation_loss: 'focal'  # 'bce', 'dice', 'focal', 'combined'
+  topological_loss: None  # None, 'cl', 'betti', 'voi'
+  topological_weight: 0.1
+
+transforms:
+  normalize:
+    mean: [0.485]
+    std: [0.229]
+  augmentations: True

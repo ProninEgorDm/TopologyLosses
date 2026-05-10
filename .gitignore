@@ -1,0 +1,14 @@
+/Users/egor/VS_GIT_repositories/TopologyLosses/checkpoints/
+*.log
+
+/VessMAP/
+
+.yaml
+.yml
+.json
+
+/checkpoints/
+*.pth
+*.pt
+
+/logs/
