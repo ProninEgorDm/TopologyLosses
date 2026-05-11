@@ -14,10 +14,11 @@ class DiceLoss(nn.Module):
     def forward(self, pred, target):
         """
         Args:
-            pred: (B, 1, H, W) - sigmoid outputs
+            pred: (B, 1, H, W) or (B, H, W) - raw logits or sigmoid outputs
             target: (B, H, W) - binary masks
         """
-        pred = pred.squeeze(1)  # (B, H, W)
+        pred = torch.sigmoid(pred)
+        pred = pred.squeeze(1)
         
         intersection = (pred * target).sum(dim=(1, 2))
         union = pred.sum(dim=(1, 2)) + target.sum(dim=(1, 2))
@@ -37,9 +38,10 @@ class FocalLoss(nn.Module):
     def forward(self, pred, target):
         """
         Args:
-            pred: (B, 1, H, W) - sigmoid outputs
+            pred: (B, 1, H, W) or (B, H, W) - raw logits or sigmoid outputs
             target: (B, H, W) - binary masks
         """
+        pred = torch.sigmoid(pred)
         pred = pred.squeeze(1)
         
         bce_loss = F.binary_cross_entropy(pred, target, reduction='none')
@@ -56,19 +58,17 @@ class CombinedSegmentationLoss(nn.Module):
         super().__init__()
         self.bce_weight = bce_weight
         self.dice_weight = dice_weight
-        self.bce = nn.BCEWithLogitsLoss() if not smooth else nn.BCELoss()
+        self.bce = nn.BCEWithLogitsLoss()
         self.dice = DiceLoss(smooth)
         
     def forward(self, pred_logits, target):
         """
         Args:
-            pred_logits: (B, 1, H, W) - raw logits
+            pred_logits: (B, 1, H, W) or (B, H, W) - raw logits
             target: (B, H, W) - binary masks
         """
-        pred_sigmoid = torch.sigmoid(pred_logits)
-        
-        bce_loss = self.bce(pred_sigmoid, target)
-        dice_loss = self.dice(pred_sigmoid, target)
+        bce_loss = self.bce(pred_logits.squeeze(1), target)
+        dice_loss = self.dice(pred_logits, target)
         
         return self.bce_weight * bce_loss + self.dice_weight * dice_loss
 
@@ -80,9 +80,11 @@ def get_segmentation_loss(loss_name='bce', **kwargs):
         return nn.BCEWithLogitsLoss()
     elif loss_name == 'dice':
         return DiceLoss(**kwargs)
-    elif loss_name == 'focal':
+    elif loss_name in ('focal', 'focal_loss'):
         return FocalLoss(**kwargs)
-    elif loss_name == 'combined':
+    elif loss_name in ('combined', 'combo'):
         return CombinedSegmentationLoss(**kwargs)
+    elif loss_name in ('ce', 'bce', 'cross_entropy', 'binary_crossentropy'):
+        return nn.BCEWithLogitsLoss()
     else:
         raise ValueError(f"Unknown loss: {loss_name}")

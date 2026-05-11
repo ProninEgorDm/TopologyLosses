@@ -12,8 +12,8 @@ model:
   in_channels: 1
   out_channels: 128
   head_num: 4
-  mlp_dim: 512
-  block_num: 8
+  mlp_dim: 256
+  block_num: 4
   patch_dim: 16
   class_num: 1
 
@@ -27,9 +27,16 @@ training:
   log_dir: './logs'
 
 loss:
-  segmentation_loss: 'focal'  # 'bce', 'dice', 'focal', 'combined'
-  topological_loss: None  # None, 'cl', 'betti', 'voi'
+  # segmentation_loss: 'focal'  # 'bce', 'dice', 'focal', 'combined'
+  # topological_loss: None  # None, 'betti', 'voi', 'hausdorff', 'composite'
   topological_weight: 0.1
+  # Optional combined loss config:
+  segmentation:
+     - dice: {weight: 1.0}
+     - bce: {weight: 1.0}
+  # topological:
+  #   - betti: {weight: 0.1}
+  #   - voi: {weight: 0.05}
 
 transforms:
   normalize:

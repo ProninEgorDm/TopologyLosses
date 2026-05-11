@@ -24,6 +24,33 @@ from models import TransUNet
 from losses.segmentation_losses.losses import get_segmentation_loss
 from losses.topological_losses.losses import get_topological_loss
 from metrics.segmentation_metrics import SegmentationMetrics
+from metrics.topological_metrcis import TopologicalMetrics
+
+
+class WeightedLoss(nn.Module):
+    """Wrap a loss module with an explicit weight."""
+
+    def __init__(self, loss_module: nn.Module, weight: float = 1.0):
+        super().__init__()
+        self.loss_module = loss_module
+        self.weight = weight
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor):
+        return self.weight * self.loss_module(pred, target)
+
+
+class LossComposer(nn.Module):
+    """Combine multiple weighted loss modules into a single loss."""
+
+    def __init__(self, loss_modules: dict[str, nn.Module]):
+        super().__init__()
+        self.losses = nn.ModuleDict(loss_modules)
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor):
+        total_loss = 0.0
+        for loss_module in self.losses.values():
+            total_loss = total_loss + loss_module(pred, target)
+        return total_loss
 
 
 class SegmentationPipeline:
@@ -46,11 +73,11 @@ class SegmentationPipeline:
         # Initialize components
         self.model = self._build_model()
         self.train_loader, self.val_loader, self.test_loader = self._build_dataloaders()
-        self.seg_loss = self._build_loss()
-        self.top_loss = self._build_topological_loss()
+        self.loss_fn = self._build_loss()
         self.optimizer = self._build_optimizer()
         self.scheduler = self._build_scheduler()
         self.metrics = SegmentationMetrics()
+        self.topological_metrics = TopologicalMetrics(threshold=self.config['training'].get('metric_threshold', 0.5))
         
         # Setup logging
         self.writer = SummaryWriter(self.config['training']['log_dir'])
@@ -157,17 +184,112 @@ class SegmentationPipeline:
         
         return train_loader, val_loader, test_loader
     
-    def _build_loss(self) -> nn.Module:
-        """Build segmentation loss."""
-        loss_name = self.config['loss']['segmentation_loss']
-        return get_segmentation_loss(loss_name)
-    
     def _build_topological_loss(self):
         """Build topological loss (if specified)."""
         loss_name = self.config['loss'].get('topological_loss')
         weight = self.config['loss'].get('topological_weight', 0.1)
         return get_topological_loss(loss_name, weight)
-    
+
+    def _normalize_loss_name(self, loss_name: str, loss_type: str) -> str:
+        """Normalize loss name aliases for segmentation or topological modules."""
+        if not isinstance(loss_name, str):
+            raise ValueError(f"Loss name must be a string, got: {type(loss_name)}")
+
+        key = loss_name.strip().lower()
+        if loss_type == 'segmentation':
+            aliases = {
+                'ce': 'bce',
+                'cross_entropy': 'bce',
+                'bce': 'bce',
+                'dice': 'dice',
+                'focal': 'focal',
+                'combined': 'combined',
+            }
+            return aliases.get(key, key)
+        elif loss_type == 'topological':
+            aliases = {
+                'betti': 'betti',
+                'betti_matching': 'betti_matching',
+                'voi': 'voi',
+                'hausdorff': 'hausdorff',
+                'composite': 'composite',
+            }
+            if key in aliases:
+                return aliases[key]
+            raise ValueError(
+                f"Unknown topological loss '{loss_name}'. Supported: {list(aliases.values())}"
+            )
+
+    def _build_loss(self) -> nn.Module:
+        """Build the final training loss function."""
+        loss_config = self.config['loss']
+
+        if isinstance(loss_config, dict) and 'segmentation' in loss_config:
+            return self._build_composite_loss(loss_config)
+
+        segment_loss_name = loss_config.get('segmentation_loss', 'bce')
+        segmentation = get_segmentation_loss(segment_loss_name)
+        topological = get_topological_loss(
+            loss_config.get('topological_loss'),
+            loss_config.get('topological_weight', 0.1)
+        )
+
+        if topological is not None:
+            return LossComposer({'segmentation': segmentation, 'topological': topological})
+
+        return segmentation
+
+    def _build_composite_loss(self, loss_config: dict) -> nn.Module:
+        """Build a composite loss from structured loss configuration."""
+        loss_modules = {}
+
+        if 'segmentation' in loss_config:
+            for entry in loss_config['segmentation']:
+                if not isinstance(entry, dict) or len(entry) != 1:
+                    raise ValueError(
+                        'Each segmentation loss entry must be a single-key dict.'
+                    )
+                name, params = next(iter(entry.items()))
+                params = params or {}
+                weight = float(params.pop('weight', 1.0))
+                loss_name = self._normalize_loss_name(name, 'segmentation')
+                module = get_segmentation_loss(loss_name, **params)
+                weighted = WeightedLoss(module, weight)
+                module_key = f'segmentation_{loss_name}'
+                loss_modules[module_key] = weighted
+
+        if 'topological' in loss_config:
+            for entry in loss_config['topological']:
+                if not isinstance(entry, dict) or len(entry) != 1:
+                    raise ValueError(
+                        'Each topological loss entry must be a single-key dict.'
+                    )
+                name, params = next(iter(entry.items()))
+                params = params or {}
+                weight = float(params.pop('weight', 1.0))
+                loss_name = self._normalize_loss_name(name, 'topological')
+                module = get_topological_loss(loss_name, weight, **params)
+                module_key = f'topological_{loss_name}'
+                loss_modules[module_key] = module
+
+        if not loss_modules:
+            raise ValueError('No valid losses were found in composite loss configuration.')
+
+        return LossComposer(loss_modules)
+
+    def _loss_description(self) -> str:
+        """Create a readable loss description for logging."""
+        loss_config = self.config['loss']
+        if isinstance(loss_config, dict) and 'segmentation' in loss_config:
+            segment_names = [next(iter(entry.keys())) for entry in loss_config.get('segmentation', [])]
+            topo_names = [next(iter(entry.keys())) for entry in loss_config.get('topological', [])]
+            return f"segmentation={segment_names}, topological={topo_names}"
+
+        return (
+            f"segmentation={loss_config.get('segmentation_loss', 'unknown')}, "
+            f"topological={loss_config.get('topological_loss', 'none')}"
+        )
+
     def _build_optimizer(self) -> optim.Optimizer:
         """Build optimizer."""
         return optim.Adam(
@@ -185,12 +307,28 @@ class SegmentationPipeline:
         )
     
     def _compute_metrics(self, predictions: torch.Tensor, targets: torch.Tensor) -> dict:
-        """Compute segmentation metrics."""
+        """Compute segmentation and topological metrics."""
         self.metrics.update(predictions, targets)
-        metrics = self.metrics.compute()
+        self.topological_metrics.update(predictions, targets)
+
+        seg_metrics = self.metrics.compute()
+        topo_metrics = self.topological_metrics.compute()
+
         self.metrics.reset()
+        self.topological_metrics.reset()
+
+        flattened_topo = {
+            'betti_pred_b0': topo_metrics['betti_pred']['b0'],
+            'betti_pred_b1': topo_metrics['betti_pred']['b1'],
+            'betti_target_b0': topo_metrics['betti_target']['b0'],
+            'betti_target_b1': topo_metrics['betti_target']['b1'],
+            'connectivity_match': topo_metrics['connectivity_match'],
+            'skeleton_accuracy': topo_metrics['skeleton_accuracy'],
+        }
+
+        metrics = {**seg_metrics, **flattened_topo}
         return metrics
-    
+
     def _train_epoch(self, epoch: int) -> dict:
         """
         Train for one epoch.
@@ -213,15 +351,8 @@ class SegmentationPipeline:
             self.optimizer.zero_grad()
             outputs = self.model(images).squeeze(1)
             
-            # Compute loss
-            seg_loss = self.seg_loss(outputs, labels)
-            loss = seg_loss
-            
-            # Add topological loss if available
-            if self.top_loss is not None:
-                top_loss = self.top_loss(outputs, labels)
-                loss += top_loss
-            
+            loss = self.loss_fn(outputs, labels)
+
             # Backward pass
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
@@ -262,25 +393,17 @@ class SegmentationPipeline:
             for batch_idx, batch in enumerate(pbar):
                 images = batch['image'].to(self.device)
                 labels = batch['label'].to(self.device).squeeze(1)
-                
+
                 # Forward pass
                 outputs = self.model(images).squeeze(1)
-                
+
                 # Compute loss
-                seg_loss = self.seg_loss(outputs, labels)
-                loss = seg_loss
-                
-                if self.top_loss is not None:
-                    top_loss = self.top_loss(outputs, labels)
-                    loss += top_loss
+                loss = self.loss_fn(outputs, labels)
                 
                 epoch_loss += loss.item()
                 preds_all.append(torch.sigmoid(outputs))
                 targets_all.append(labels)
-                
-                pbar.set_postfix({'loss': f'{epoch_loss / (batch_idx + 1):.4f}'})
-        
-        # Compute epoch metrics
+
         preds_all = torch.cat(preds_all, dim=0)
         targets_all = torch.cat(targets_all, dim=0)
         metrics = self._compute_metrics(preds_all, targets_all)
@@ -311,7 +434,7 @@ class SegmentationPipeline:
     def train(self):
         """Run full training pipeline."""
         print("=" * 80)
-        print(f"Starting training - Loss: {self.config['loss']['segmentation_loss']}")
+        print(f"Starting training - Loss: {self._loss_description()}")
         print("=" * 80)
         
         for epoch in range(self.epochs):
@@ -390,14 +513,9 @@ class SegmentationPipeline:
                 labels = batch['label'].to(self.device)
                 
                 outputs = self.model(images)
-                
-                seg_loss = self.seg_loss(outputs, labels)
-                loss = seg_loss
-                
-                if self.top_loss is not None:
-                    top_loss = self.top_loss(outputs, labels)
-                    loss += top_loss
-                
+
+                labels = labels.squeeze(1)
+                loss = self.loss_fn(outputs, labels)
                 epoch_loss += loss.item()
                 preds_all.append(torch.sigmoid(outputs))
                 targets_all.append(labels)
@@ -488,11 +606,11 @@ class MultiLossComparator:
             
             pipeline.model = pipeline._build_model()
             pipeline.train_loader, pipeline.val_loader, pipeline.test_loader = pipeline._build_dataloaders()
-            pipeline.seg_loss = pipeline._build_loss()
-            pipeline.top_loss = pipeline._build_topological_loss()
+            pipeline.loss_fn = pipeline._build_loss()
             pipeline.optimizer = pipeline._build_optimizer()
             pipeline.scheduler = pipeline._build_scheduler()
             pipeline.metrics = SegmentationMetrics()
+            pipeline.topological_metrics = TopologicalMetrics(threshold=config['training'].get('metric_threshold', 0.5))
             
             pipeline.writer = SummaryWriter(
                 os.path.join(pipeline.config['training']['log_dir'], f'loss_{loss_name}')
