@@ -1,0 +1,39 @@
+data:
+  dataset_path: /Users/egor/VS_GIT_repositories/TopologyLosses/VessMAP/
+  image_size: 256
+  test_size: 0.2
+  val_size_from_test: 0.4
+  batch_size: 8
+  num_workers: 2
+model:
+  name: transunet
+  in_channels: 1
+  out_channels: 128
+  head_num: 4
+  mlp_dim: 256
+  block_num: 4
+  patch_dim: 16
+  class_num: 1
+training:
+  epochs: 50
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  device: cpu
+  save_checkpoints: true
+  checkpoint_dir: ./checkpoints
+  log_dir: ./logs
+  metric_threshold: 0.65
+loss:
+  topological_weight: 0.1
+  segmentation:
+  - dice:
+      weight: 1.0
+  - bce:
+      weight: 1.0
+transforms:
+  normalize:
+    mean:
+    - 0.485
+    std:
+    - 0.229
+  augmentations: true
