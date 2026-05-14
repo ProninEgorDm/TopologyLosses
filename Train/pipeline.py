@@ -538,11 +538,10 @@ class SegmentationPipeline:
             
             for batch in pbar:
                 images = batch['image'].to(self.device)
-                labels = batch['label'].to(self.device)
+                labels = batch['label'].to(self.device).squeeze(1)
                 
-                outputs = self.model(images)
+                outputs = self.model(images).squeeze(1)
 
-                labels = labels.squeeze(1)
                 loss = self.loss_fn(outputs, labels)
                 epoch_loss += loss.item()
                 preds_all.append(torch.sigmoid(outputs))
