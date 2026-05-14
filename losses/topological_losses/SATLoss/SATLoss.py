@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils.cubical_complex import CubicalComplex
-from utils.PDMatching import SpatialAware_WassersteinDistance
+from .cubical_complex import CubicalComplex
+from .PDMatching import SpatialAware_WassersteinDistance
 
 class PDMatchingLoss(nn.Module):
     def __init__(self, opt, p=2):

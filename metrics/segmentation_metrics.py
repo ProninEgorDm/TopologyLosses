@@ -11,7 +11,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, jaccard_sco
 class SegmentationMetrics:
     """Compute standard segmentation metrics."""
     
-    def __init__(self, threshold=0.2):
+    def __init__(self, threshold=0.5):
         self.threshold = threshold
         self.reset()
         

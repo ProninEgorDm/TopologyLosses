@@ -10,6 +10,8 @@ A comprehensive training and validation pipeline for the VessMAP vessel segmenta
 - Optional topological losses for preserving structure
 - Checkpointing and early stopping
 - TensorBoard logging
+- **FLOPs counting and training time tracking**
+- **Best model saving per configuration**
 
 ### 2. **Multiple Loss Functions**
 
@@ -48,6 +50,188 @@ A comprehensive training and validation pipeline for the VessMAP vessel segmenta
 - Endpoint Preservation
 
 ### 4. **Loss Function Comparison**
+Compare multiple loss configurations automatically with detailed performance analysis.
+
+## Quick Start
+
+### Installation
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd TopologyLosses
+
+# Install dependencies
+pip install -e .
+```
+
+### Training a Single Model
+
+```bash
+# Train with default configuration
+python train.py --config configs/default_config.yaml
+
+# Resume from checkpoint
+python train.py --config configs/default_config.yaml --checkpoint checkpoints/best_model.pt
+```
+
+### Comparing Loss Functions
+
+```bash
+# Run comparison of multiple loss configurations
+python run_comparison.py --config configs/default_config.yaml
+
+# Use custom loss configurations
+python run_comparison.py --config configs/default_config.yaml --loss-configs configs/my_losses.yaml
+```
+
+### Testing the Pipeline
+
+```bash
+# Run basic pipeline test
+python test_pipeline.py
+```
+
+## Configuration
+
+### Loss Configuration
+
+The pipeline supports flexible loss configuration through YAML:
+
+#### Simple Configuration:
+```yaml
+loss:
+  segmentation_loss: 'dice'  # 'bce', 'dice', 'focal', 'combined'
+  topological_loss: 'betti'  # 'betti', 'voi', 'hausdorff', 'composite', None
+  topological_weight: 0.1
+```
+
+#### Combined Loss Configuration:
+```yaml
+loss:
+  segmentation:
+    - dice: {weight: 0.5}
+    - bce: {weight: 0.5}
+  topological:
+    - betti: {weight: 0.1}
+    - voi: {tloss: 0.05}
+```
+
+### Default Configuration
+
+See `configs/default_config.yaml` for all available options including:
+- Dataset paths and preprocessing
+- Model architecture
+- Training hyperparameters
+- Logging and checkpointing
+
+## Output Analysis
+
+### Training Results
+- **TensorBoard Logs**: Real-time monitoring in `logs/` directory
+- **Training History**: JSON files with loss curves and metrics
+- **Checkpoints**: Best models saved per configuration
+
+### Performance Comparison
+- **Comparative Metrics**: Tables comparing all configurations
+- **FLOPs Analysis**: Computational complexity per model
+- **Timing Analysis**: Training time per epoch and configuration
+- **Topological Preservation**: How well each loss maintains vessel structure
+
+### Example Output:
+```
+COMPARISON SUMMARY
+================================================================================
+Loss Function         Test Loss    Test Dice    Test IoU    Time (s)    FLOPs (G)
+--------------------------------------------------------------------------------
+dice                  0.2345       0.8765       0.7890      45.67       12.34
+bce                   0.2456       0.8654       0.7756      43.21       12.34
+combined_topo         0.2234       0.8890       0.8012      47.89       12.34
+```
+
+## Architecture
+
+### Core Components
+
+1. **SegmentationPipeline**: Main training class
+   - Model initialization and training
+   - Loss computation and optimization
+   - Metrics collection and logging
+   - FLOPs counting and timing
+
+2. **MultiLossComparator**: Comparison framework
+   - Parallel training with different losses
+   - Automated result collection
+   - Statistical analysis and reporting
+
+3. **Loss Modules**:
+   - Segmentation losses in `losses/segmentation_losses/`
+   - Topological losses in `losses/topological_losses/`
+
+4. **Metrics**:
+   - Segmentation metrics in `metrics/segmentation_metrics.py`
+   - Topological metrics in `metrics/topological_metrcis.py`
+
+### Data Pipeline
+
+- **Dataset**: Custom VessMapDataset for vessel images
+- **Transforms**: Augmentation and preprocessing
+- **Dataloaders**: Efficient batching and GPU transfer
+
+## Advanced Usage
+
+### Custom Loss Functions
+
+Add new losses by implementing the loss interface:
+
+```python
+class MyLoss(nn.Module):
+    def forward(self, pred, target):
+        # Your loss computation
+        return loss_value
+```
+
+### Custom Metrics
+
+Extend metrics by adding to the metrics classes:
+
+```python
+def my_metric(self, pred, target):
+    # Compute custom metric
+    return metric_value
+```
+
+### Hyperparameter Tuning
+
+Use the comparison framework to test different configurations:
+
+```python
+loss_configs = {
+    'config1': {'segmentation_loss': 'dice', 'learning_rate': 0.001},
+    'config2': {'segmentation_loss': 'bce', 'learning_rate': 0.0001},
+}
+```
+
+## Results and Analysis
+
+The pipeline automatically generates:
+- **Performance Rankings**: Best configurations by metric
+- **Convergence Analysis**: Training curves comparison
+- **Computational Analysis**: FLOPs and timing breakdowns
+- **Topological Analysis**: Structure preservation evaluation
+
+## Citation
+
+If you use this pipeline in your research, please cite:
+
+```
+@misc{vessmap-pipeline,
+  title={VessMAP Semantic Segmentation Pipeline},
+  author={Your Name},
+  year={2024},
+  url={https://github.com/your-repo}
+}
+```
 - Train models with multiple losses simultaneously
 - Automated comparison and reporting
 - Visualization of results

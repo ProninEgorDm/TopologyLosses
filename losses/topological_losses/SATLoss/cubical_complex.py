@@ -47,8 +47,8 @@ class CubicalComplex(nn.Module):
             x = -x
 
         cubical_complex = gudhi.CubicalComplex(
-            dimensions=x.shape,
-            top_dimensional_cells=x.flatten()
+            dimensions=list(x.shape),
+            top_dimensional_cells=x.detach().cpu().numpy().flatten()
         )
 
         # We need the persistence pairs first, even though we are *not*

@@ -99,9 +99,9 @@ class VessMapDataset(Dataset):
             skeleton = skeleton.squeeze(0)
         
         return {
-            'image': image,
-            'label': label.unsqueeze(0),  # (1, H, W)
-            'skeleton': skeleton.unsqueeze(0),  # (1, H, W)
+            'image': image.as_tensor(),
+            'label': label.unsqueeze(0).as_tensor() ,  # (1, H, W)
+            'skeleton': skeleton.unsqueeze(0).as_tensor(),  # (1, H, W)
             'image_id': image_id
         }
 

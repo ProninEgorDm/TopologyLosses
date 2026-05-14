@@ -25,6 +25,7 @@ training:
   save_checkpoints: True
   checkpoint_dir: './checkpoints'
   log_dir: './logs'
+  metric_threshold: 0.65
 
 loss:
   # segmentation_loss: 'focal'  # 'bce', 'dice', 'focal', 'combined'

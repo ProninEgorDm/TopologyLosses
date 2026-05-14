@@ -25,6 +25,8 @@ from losses.segmentation_losses.losses import get_segmentation_loss
 from losses.topological_losses.losses import get_topological_loss
 from metrics.segmentation_metrics import SegmentationMetrics
 from metrics.topological_metrcis import TopologicalMetrics
+from utils.flops_counter import count_flops, print_model_summary
+import time
 
 
 class WeightedLoss(nn.Module):
@@ -72,11 +74,12 @@ class SegmentationPipeline:
         
         # Initialize components
         self.model = self._build_model()
+        self._compute_model_flops()
         self.train_loader, self.val_loader, self.test_loader = self._build_dataloaders()
         self.loss_fn = self._build_loss()
         self.optimizer = self._build_optimizer()
         self.scheduler = self._build_scheduler()
-        self.metrics = SegmentationMetrics()
+        self.metrics = SegmentationMetrics(threshold=self.config['training'].get('metric_threshold', 0.5))
         self.topological_metrics = TopologicalMetrics(threshold=self.config['training'].get('metric_threshold', 0.5))
         
         # Setup logging
@@ -90,6 +93,9 @@ class SegmentationPipeline:
             'val_loss': [],
             'train_metrics': defaultdict(list),
             'val_metrics': defaultdict(list),
+            'epoch_times': [],  # Training time per epoch
+            'flops': self.flops,
+            'params': self.params,
         }
         
         # Loss comparison tracking
@@ -134,6 +140,13 @@ class SegmentationPipeline:
         
         model = model.to(self.device)
         return model
+    
+    def _compute_model_flops(self):
+        """Compute and store model FLOPs and parameters."""
+        input_shape = (1, self.config['model']['in_channels'], 
+                      self.config['data']['image_size'], self.config['data']['image_size'])
+        self.flops, self.params = count_flops(self.model, input_shape, self.device.type)
+        print_model_summary(self.model, input_shape, self.device.type)
     
     def _build_dataloaders(self):
         """Build train, validation, and test dataloaders."""
@@ -213,6 +226,11 @@ class SegmentationPipeline:
                 'voi': 'voi',
                 'hausdorff': 'hausdorff',
                 'composite': 'composite',
+                'cldice': 'cldice',
+                'gdice': 'gdice',
+                'sat': 'sat',
+                'tloss': 'tloss',
+                'bm': 'bm'
             }
             if key in aliases:
                 return aliases[key]
@@ -421,12 +439,15 @@ class SegmentationPipeline:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'config': self.config,
             'history': dict(self.history),
+            'flops': self.flops,
+            'params': self.params,
         }
         
         if is_best:
+            loss_desc = self._loss_description().replace(' ', '_').replace(',', '_').replace('=', '_')
             best_path = os.path.join(
                 self.config['training']['checkpoint_dir'],
-                'best_model.pt'
+                f'best_model_{loss_desc}.pt'
             )
             torch.save(checkpoint, best_path)
             print(f"Best model saved to {best_path}")
@@ -438,6 +459,8 @@ class SegmentationPipeline:
         print("=" * 80)
         
         for epoch in range(self.epochs):
+            epoch_start_time = time.time()
+            
             # Train
             train_result = self._train_epoch(epoch)
             
@@ -447,9 +470,12 @@ class SegmentationPipeline:
             # Update scheduler
             self.scheduler.step()
             
+            epoch_time = time.time() - epoch_start_time
+            
             # Log to tensorboard
             self.writer.add_scalar('Loss/train', train_result['loss'], epoch)
             self.writer.add_scalar('Loss/val', val_result['loss'], epoch)
+            self.writer.add_scalar('Time/epoch', epoch_time, epoch)
             
             for metric_name, metric_value in train_result['metrics'].items():
                 self.writer.add_scalar(f'Train/{metric_name}', metric_value, epoch)
@@ -460,6 +486,7 @@ class SegmentationPipeline:
             # Update history
             self.history['train_loss'].append(train_result['loss'])
             self.history['val_loss'].append(val_result['loss'])
+            self.history['epoch_times'].append(epoch_time)
             
             for metric_name, metric_value in train_result['metrics'].items():
                 self.history['train_metrics'][metric_name].append(metric_value)
@@ -481,6 +508,7 @@ class SegmentationPipeline:
             print(f"Train Loss: {train_result['loss']:.4f} | Val Loss: {val_result['loss']:.4f}")
             print(f"Train Dice: {train_result['metrics']['f1']:.4f} | Val Dice: {val_result['metrics']['f1']:.4f}")
             print(f"Train IoU: {train_result['metrics']['iou']:.4f} | Val IoU: {val_result['metrics']['iou']:.4f}")
+            print(f"Epoch Time: {epoch_time:.2f}s")
         
         self.writer.close()
         self._save_history()
@@ -551,6 +579,10 @@ class SegmentationPipeline:
             'val_loss': self.history['val_loss'],
             'train_metrics': dict(self.history['train_metrics']),
             'val_metrics': dict(self.history['val_metrics']),
+            'epoch_times': self.history['epoch_times'],
+            'flops': self.flops,
+            'params': self.params,
+            'total_training_time': sum(self.history['epoch_times']),
         }
         
         with open(history_path, 'w') as f:
@@ -567,35 +599,35 @@ class SegmentationPipeline:
 class MultiLossComparator:
     """Compare performance of different loss functions."""
     
-    def __init__(self, config_path: str, loss_functions: list):
+    def __init__(self, config_path: str, loss_configs: dict):
         """
         Initialize comparator.
         
         Args:
             config_path: Path to configuration file
-            loss_functions: List of loss function names to compare
+            loss_configs: Dict of loss config names to loss configurations
         """
         self.config_path = config_path
-        self.loss_functions = loss_functions
+        self.loss_configs = loss_configs
         self.results = {}
     
     def run_comparison(self):
-        """Run training with all loss functions and collect results."""
+        """Run training with all loss configurations and collect results."""
         print("=" * 80)
         print("LOSS FUNCTION COMPARISON")
         print("=" * 80)
         
-        for loss_name in self.loss_functions:
+        for loss_name, loss_config in self.loss_configs.items():
             print(f"\n{'='*80}")
-            print(f"Training with {loss_name.upper()} loss")
+            print(f"Training with {loss_name.upper()} configuration")
             print(f"{'='*80}\n")
             
-            # Load config
+            # Load base config
             with open(self.config_path, 'r') as f:
                 config = yaml.safe_load(f)
             
-            # Update loss
-            config['loss']['segmentation_loss'] = loss_name
+            # Update loss config
+            config['loss'] = loss_config
             
             # Create pipeline
             pipeline = SegmentationPipeline.__new__(SegmentationPipeline)
@@ -605,15 +637,16 @@ class MultiLossComparator:
             pipeline._setup_directories()
             
             pipeline.model = pipeline._build_model()
+            pipeline._compute_model_flops()
             pipeline.train_loader, pipeline.val_loader, pipeline.test_loader = pipeline._build_dataloaders()
             pipeline.loss_fn = pipeline._build_loss()
             pipeline.optimizer = pipeline._build_optimizer()
             pipeline.scheduler = pipeline._build_scheduler()
-            pipeline.metrics = SegmentationMetrics()
+            pipeline.metrics = SegmentationMetrics(threshold=config['training'].get('metric_threshold', 0.5))
             pipeline.topological_metrics = TopologicalMetrics(threshold=config['training'].get('metric_threshold', 0.5))
             
             pipeline.writer = SummaryWriter(
-                os.path.join(pipeline.config['training']['log_dir'], f'loss_{loss_name}')
+                os.path.join(pipeline.config['training']['log_dir'], f'config_{loss_name}')
             )
             pipeline.best_val_loss = float('inf')
             pipeline.best_val_dice = 0.0
@@ -623,6 +656,9 @@ class MultiLossComparator:
                 'val_loss': [],
                 'train_metrics': defaultdict(list),
                 'val_metrics': defaultdict(list),
+                'epoch_times': [],
+                'flops': pipeline.flops,
+                'params': pipeline.params,
             }
             
             # Train
@@ -635,6 +671,9 @@ class MultiLossComparator:
                 'train_history': pipeline.history,
                 'test_results': test_results,
                 'best_val_loss': pipeline.best_val_loss,
+                'flops': pipeline.flops,
+                'params': pipeline.params,
+                'total_training_time': sum(pipeline.history['epoch_times']),
             }
             
             pipeline.writer.close()
@@ -659,6 +698,9 @@ class MultiLossComparator:
                 'test_metrics': data['test_results']['metrics'],
                 'test_loss': data['test_results']['loss'],
                 'best_val_loss': data['best_val_loss'],
+                'flops': data['flops'],
+                'params': data['params'],
+                'total_training_time': data['total_training_time'],
             }
         
         with open(results_path, 'w') as f:
@@ -669,16 +711,18 @@ class MultiLossComparator:
     
     def _print_comparison_summary(self):
         """Print comparison summary."""
-        print("\n" + "=" * 80)
+        print("\n" + "=" * 100)
         print("COMPARISON SUMMARY")
-        print("=" * 80)
+        print("=" * 100)
         
-        print(f"\n{'Loss Function':<20} {'Test Loss':<15} {'Test Dice':<15} {'Test IoU':<15}")
-        print("-" * 65)
+        print(f"\n{'Loss Function':<20} {'Test Loss':<12} {'Test Dice':<12} {'Test IoU':<12} {'Time (s)':<12} {'FLOPs (G)':<12}")
+        print("-" * 80)
         
         for loss_name, data in self.results.items():
             test_loss = data['test_results']['loss']
             test_dice = data['test_results']['metrics']['f1']
             test_iou = data['test_results']['metrics']['iou']
+            total_time = data['total_training_time']
+            flops_g = data['flops'] / 1e9 if data['flops'] > 0 else 0
             
-            print(f"{loss_name:<20} {test_loss:<15.4f} {test_dice:<15.4f} {test_iou:<15.4f}")
+            print(f"{loss_name:<20} {test_loss:<12.4f} {test_dice:<12.4f} {test_iou:<12.4f} {total_time:<12.2f} {flops_g:<12.2f}")

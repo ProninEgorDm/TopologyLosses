@@ -5,49 +5,34 @@ Usage:
         python train.py --config configs/default_config.yaml
     
     Compare losses:
-        python train.py --config configs/default_config.yaml --compare dice,ce,focal
+        python run_comparison.py --config configs/default_config.yaml
 """
 
 import argparse
 import sys
-from Train.pipeline import SegmentationPipeline, MultiLossComparator
+from Train.pipeline import SegmentationPipeline
 
 
 def main():
     parser = argparse.ArgumentParser(description='Train VessMAP segmentation model')
     parser.add_argument('--config', type=str, default='configs/default_config.yaml',
                         help='Path to configuration file')
-    parser.add_argument('--compare', type=str, default=None,
-                        help='Comma-separated loss functions to compare (e.g., "dice,bce,focal")')
     parser.add_argument('--checkpoint', type=str, default=None,
                         help='Path to checkpoint to resume from')
     
     args = parser.parse_args()
     
-    if args.compare:
-        # Run loss comparison
-        loss_functions = [loss.strip() for loss in args.compare.split(',')]
-        comparator = MultiLossComparator(args.config, loss_functions)
-        comparator.run_comparison()
-    else:
-        # Single training
-        pipeline = SegmentationPipeline(args.config)
-        
-        if args.checkpoint:
-            pipeline.load_checkpoint(args.checkpoint)
-        
-        pipeline.train()
+    # Single training
+    pipeline = SegmentationPipeline(args.config)
+    
+    if args.checkpoint:
+        pipeline.load_checkpoint(args.checkpoint)
+    
+    pipeline.train()
 
 
 if __name__ == '__main__':
     main()
-        
-    # Initialize metrics
-    self.seg_metrics = SegmentationMetrics()
-    self.top_metrics = TopologicalMetrics()
-        
-    def _build_model(self):
-        """Build model based on config."""
         model_config = self.config['model']
         
         if model_config['name'] == 'transunet':

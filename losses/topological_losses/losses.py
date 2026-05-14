@@ -7,6 +7,16 @@ import torch
 import torch.nn as nn
 from scipy import ndimage
 import numpy as np
+from types import SimpleNamespace
+
+from losses.topological_losses.BMLoss.loss_functions import (
+    BettiMatchingLoss as PyBettiMatchingLoss,
+    DiceBettiMatchingLoss as PyDiceBettiMatchingLoss,
+)
+from losses.topological_losses.CLDiceLoss.cldice import soft_dice_cldice
+from losses.topological_losses.GDLoss.GDLoss import GDL, GDiceLoss
+from losses.topological_losses.SATLoss.SATLoss import PDMatchingLoss
+from losses.topological_losses.TLoss.tloss import TLoss
 
 
 class TopologicalLoss(nn.Module):
@@ -279,6 +289,122 @@ class HausdorffDistanceLoss(TopologicalLoss):
         return hausdorff
 
 
+class CLDiceTopologicalLoss(TopologicalLoss):
+    """CLDice-based topological loss wrapper."""
+
+    def __init__(
+        self,
+        weight=1.0,
+        alpha=0.5,
+        iter_=3,
+        exclude_background=False,
+        sigmoid=False,
+        softmax=False,
+    ):
+        super().__init__(weight)
+        self.loss = soft_dice_cldice(iter_=iter_, alpha=alpha, smooth=1.0, exclude_background=exclude_background)
+        self.sigmoid = sigmoid
+        self.softmax = softmax
+
+    def forward(self, pred, target):
+        if pred.ndim == 3:
+            pred = pred.unsqueeze(1)
+        if target.ndim == 3:
+            target = target.unsqueeze(1)
+
+        if self.sigmoid:
+            pred = torch.sigmoid(pred)
+        if self.softmax:
+            pred = torch.softmax(pred, dim=1)
+
+        loss = self.loss(target.float(), pred.float())
+        return self.weight * loss
+
+
+class GDiceTopologicalLoss(TopologicalLoss):
+    """Wrapper for the GDLoss / GDiceLoss implementations."""
+
+    def __init__(self, weight=1.0, use_gdice=True):
+        super().__init__(weight)
+        self.loss = GDiceLoss(weight=None) if use_gdice else GDL(weight=None)
+
+    def forward(self, pred, target):
+        if pred.ndim == 4:
+            pred = pred.unsqueeze(2)
+        if target.ndim == 3:
+            target = target.unsqueeze(1).unsqueeze(2).long()
+        elif target.ndim == 4:
+            target = target.unsqueeze(2).long()
+
+        loss = self.loss(pred, target)
+        return self.weight * loss
+
+
+class SATTopologicalLoss(TopologicalLoss):
+    """Wrapper for the SATLoss PDMatchingLoss implementation."""
+
+    def __init__(self, weight=1.0, precal_PD=False, p=2):
+        super().__init__(weight)
+        opt = SimpleNamespace(precal_PD=precal_PD)
+        self.loss = PDMatchingLoss(opt, p=p)
+
+    def forward(self, pred, target, img_names=None):
+        if pred.ndim == 3:
+            pred = pred.unsqueeze(1)
+        if target.ndim == 3:
+            target = target.unsqueeze(1).float()
+
+        loss = self.loss(pred.float(), target.float(), img_names=img_names)
+        return self.weight * loss
+
+
+class TLossWrapper(TopologicalLoss):
+    """Wrapper for the TLoss implementation."""
+
+    def __init__(self, weight=1.0, image_size=256, device=None, nu=1.0, epsilon=1e-8, reduction='mean'):
+        super().__init__(weight)
+        if device is None:
+            device = torch.device('cpu')
+        config = SimpleNamespace(data=SimpleNamespace(image_size=image_size), device=device)
+        self.loss = TLoss(config, nu=nu, epsilon=epsilon, reduction=reduction)
+
+    def forward(self, pred, target):
+        if pred.ndim == 4 and pred.shape[1] == 1:
+            pred = pred.squeeze(1)
+        if target.ndim == 4 and target.shape[1] == 1:
+            target = target.squeeze(1)
+
+        loss = self.loss(pred, target)
+        return self.weight * loss
+
+
+class BettiMatchingWrapper(TopologicalLoss):
+    """Wrapper for the pure Python BMLoss Betti matching implementation."""
+
+    def __init__(
+        self,
+        weight=1.0,
+        batch=False,
+        relative=False,
+        filtration='superlevel',
+    ):
+        super().__init__(weight)
+        self.loss = PyBettiMatchingLoss(
+            batch=batch,
+            relative=relative,
+            filtration=filtration,
+        )
+
+    def forward(self, pred, target):
+        if pred.ndim == 3:
+            pred = pred.unsqueeze(1)
+        if target.ndim == 3:
+            target = target.unsqueeze(1)
+
+        loss, _ = self.loss(pred, target)
+        return self.weight * loss
+
+
 class CompositeTopologicalLoss(TopologicalLoss):
     """
     Composite topological loss combining multiple topological losses.
@@ -300,7 +426,7 @@ class CompositeTopologicalLoss(TopologicalLoss):
         return loss
 
 
-def get_topological_loss(loss_name=None, weight=0.1):
+def get_topological_loss(loss_name=None, weight=0.1, **kwargs):
     """
     Factory function to get topological loss.
     
@@ -324,5 +450,15 @@ def get_topological_loss(loss_name=None, weight=0.1):
         return HausdorffDistanceLoss(weight)
     elif loss_name.lower() == 'composite':
         return CompositeTopologicalLoss()
+    elif loss_name.lower() in ('cldice', 'cl_dice'):
+        return CLDiceTopologicalLoss(weight=weight, **kwargs)
+    elif loss_name.lower() in ('gdice', 'gdl'):
+        return GDiceTopologicalLoss(weight=weight, **kwargs)
+    elif loss_name.lower() in ('sat', 'satloss', 'pdmatching'):
+        return SATTopologicalLoss(weight=weight, **kwargs)
+    elif loss_name.lower() == 'tloss':
+        return TLossWrapper(weight=weight, **kwargs)
+    elif loss_name.lower() in ('bm', 'betti_fast', 'fast_betti'):
+        return BettiMatchingWrapper(weight=weight, **kwargs)
     else:
         raise ValueError(f"Unknown topological loss: {loss_name}")
