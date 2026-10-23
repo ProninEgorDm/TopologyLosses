@@ -1,4 +1,3 @@
-"""
 QUICK START GUIDE - VessMAP Semantic Segmentation Pipeline
 ===========================================================
 
