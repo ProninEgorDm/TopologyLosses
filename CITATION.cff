@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: topologysegmentation
+message: If you use this software, please cite it.
+type: software
+authors:
+  - name: proninegor
+    email: pr0n1n3@yandex.ru
+repository-code: https://github.com/ProninEgorDm/TopologyLosses
+url: https://github.com/ProninEgorDm/TopologyLosses
+license: MIT
+version: 0.1.0
+date-released: 2026-10-26
+keywords:
+  - segmentation
+  - topology
+  - persistent homology
+  - pytorch
+  - clDice
+  - Betti matching

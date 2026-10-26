@@ -1,12 +1,31 @@
-/Users/egor/VS_GIT_repositories/TopologyLosses/checkpoints/
+# Виртуальное окружение и кэш интерпретатора.
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Сборка колеса. Каталог dist/ создаёт uv build, в git он не нужен.
+build/
+dist/
+
+# Служебные файлы macOS и Jupyter.
+.DS_Store
+.ipynb_checkpoints/
+
+# Прогоны обучения: конфиг копии, история, чекпоинты, логи.
+/runs/
+/logs/
+/checkpoints/
+*.pt
+*.pth
 *.log
 
-/VessMAP/
+# Датасет и собранное C++ расширение. Оба ставятся локально и в пакет не входят.
+**/VessMAP/
+/Betti-Matching-3D/
 
-.json
-
-/checkpoints/
-*.pth
-*.pt
-
-/logs/
+# Кэш локальной компиляции cubical_betti.c. В колесе лежит исходник, не библиотека.
+.cache/

@@ -1,0 +1,14 @@
+include LICENSE NOTICE README.md QUICKSTART.md RELEASING.md pyproject.toml
+recursive-include src/topologysegmentation *.py
+recursive-include src/topologysegmentation/_native *.c
+include src/topologysegmentation/VERSION
+include src/topologysegmentation/losses/vendor/tloss/LICENSE
+prune experiments
+prune tests
+prune configs
+prune splits
+prune runs
+prune logs
+prune checkpoints
+prune src/topologysegmentation/losses/vendor/gd
+global-exclude *.pt *.pth *.so *.dylib *.log *.pyc

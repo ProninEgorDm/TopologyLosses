@@ -1,565 +1,119 @@
-# VessMAP Semantic Segmentation Pipeline
+# topologysegmentation
 
-A comprehensive training and validation pipeline for the VessMAP vessel segmentation dataset, supporting multiple loss functions and topological metrics.
+[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/pytorch-2.2%2B-EE4C2C)](https://pytorch.org/)
+[![License](https://img.shields.io/badge/license-MIT%20%2B%20Apache--2.0-green)](https://github.com/ProninEgorDm/TopologyLosses/blob/main/LICENSE)
 
-## Features
+PyTorch losses and metrics for topology-aware segmentation. Overlap losses stay high when a vessel or airway is broken in the middle. These terms penalize that: soft skeletons, persistence diagrams, and Betti matching, for a 2D frame or a 3D volume.
 
-### 1. **Complete Training Pipeline**
-- Full training/validation/test workflow
-- Support for multiple segmentation loss functions
-- Optional topological losses for preserving structure
-- Checkpointing and early stopping
-- TensorBoard logging
-- **FLOPs counting and training time tracking**
-- **Best model saving per configuration**
-
-### 2. **Multiple Loss Functions**
-
-#### Segmentation Losses:
-- **BCE** - Binary Cross-Entropy loss
-- **Dice** - Dice coefficient loss
-- **Focal** - Focal loss for class imbalance
-- **Combined** - Weighted combination of BCE and Dice
-
-#### Topological Losses:
-- **Betti Loss** - Preserves topological features (connected components, holes)
-- **Betti Matching** - Component-aware matching loss
-- **VOI (Variation of Information)** - Information-theoretic loss
-- **Hausdorff Distance** - Boundary-aware loss
-- **Composite** - Weighted combination of multiple topological losses
-
-### 3. **Comprehensive Metrics**
-
-#### Segmentation Metrics:
-- Accuracy
-- Precision & Recall
-- F1 Score (Dice)
-- IoU (Jaccard Index)
-- Specificity
-
-#### Topological Metrics:
-- Betti Numbers (connectivity, holes)
-- Connected Components
-- Connectivity Preservation
-- Skeleton Accuracy
-- Hausdorff Distance
-
-#### Vessel-Specific Metrics:
-- Bifurcation Points
-- Branch Count
-- Endpoint Preservation
-
-### 4. **Loss Function Comparison**
-Compare multiple loss configurations automatically with detailed performance analysis.
-
-## Quick Start
-
-### Installation
+| Paper | Loss |
+| --- | --- |
+| Shit et al., [clDice](https://arxiv.org/abs/2003.07311) | `cldice` |
+| Hu, Li, Samaras, Chen, [NeurIPS 2019](https://arxiv.org/abs/1906.05404) | `hu` |
+| Stucki et al., [Betti matching, ICML 2023](https://proceedings.mlr.press/v202/stucki23a) | `bm`, `bm3d` |
+| Wen et al., [SAT](https://arxiv.org/abs/2412.02076) | `sat` |
+| González-Jiménez et al., [T-Loss](https://github.com/Digital-Dermatology/t-loss) | `tloss` |
 
 ```bash
-# Clone repository
-git clone <repository-url>
-cd TopologyLosses
-
-# Install dependencies
-pip install -e .
+pip install topologysegmentation          # Dice, clDice, pooling, critical points, T-Loss
+pip install "topologysegmentation[ph]"    # also Hu, Betti matching, and SAT
 ```
-
-### Training a Single Model
-
-```bash
-# Train with default configuration
-python train.py --config configs/default_config.yaml
-
-# Resume from checkpoint
-python train.py --config configs/default_config.yaml --checkpoint checkpoints/best_model.pt
-```
-
-### Comparing Loss Functions
-
-```bash
-# Run comparison of multiple loss configurations
-python run_comparison.py --config configs/default_config.yaml
-
-# Use custom loss configurations
-python run_comparison.py --config configs/default_config.yaml --loss-configs configs/my_losses.yaml
-```
-
-### Testing the Pipeline
-
-```bash
-# Run basic pipeline test
-python test_pipeline.py
-```
-
-## Configuration
-
-### Loss Configuration
-
-The pipeline supports flexible loss configuration through YAML:
-
-#### Simple Configuration:
-```yaml
-loss:
-  segmentation_loss: 'dice'  # 'bce', 'dice', 'focal', 'combined'
-  topological_loss: 'betti'  # 'betti', 'voi', 'hausdorff', 'composite', None
-  topological_weight: 0.1
-```
-
-#### Combined Loss Configuration:
-```yaml
-loss:
-  segmentation:
-    - dice: {weight: 0.5}
-    - bce: {weight: 0.5}
-  topological:
-    - betti: {weight: 0.1}
-    - voi: {tloss: 0.05}
-```
-
-### Default Configuration
-
-See `configs/default_config.yaml` for all available options including:
-- Dataset paths and preprocessing
-- Model architecture
-- Training hyperparameters
-- Logging and checkpointing
-
-## Output Analysis
-
-### Training Results
-- **TensorBoard Logs**: Real-time monitoring in `logs/` directory
-- **Training History**: JSON files with loss curves and metrics
-- **Checkpoints**: Best models saved per configuration
-
-### Performance Comparison
-- **Comparative Metrics**: Tables comparing all configurations
-- **FLOPs Analysis**: Computational complexity per model
-- **Timing Analysis**: Training time per epoch and configuration
-- **Topological Preservation**: How well each loss maintains vessel structure
-
-### Example Output:
-```
-COMPARISON SUMMARY
-================================================================================
-Loss Function         Test Loss    Test Dice    Test IoU    Time (s)    FLOPs (G)
---------------------------------------------------------------------------------
-dice                  0.2345       0.8765       0.7890      45.67       12.34
-bce                   0.2456       0.8654       0.7756      43.21       12.34
-combined_topo         0.2234       0.8890       0.8012      47.89       12.34
-```
-
-## Architecture
-
-### Core Components
-
-1. **SegmentationPipeline**: Main training class
-   - Model initialization and training
-   - Loss computation and optimization
-   - Metrics collection and logging
-   - FLOPs counting and timing
-
-2. **MultiLossComparator**: Comparison framework
-   - Parallel training with different losses
-   - Automated result collection
-   - Statistical analysis and reporting
-
-3. **Loss Modules**:
-   - Segmentation losses in `losses/segmentation_losses/`
-   - Topological losses in `losses/topological_losses/`
-
-4. **Metrics**:
-   - Segmentation metrics in `metrics/segmentation_metrics.py`
-   - Topological metrics in `metrics/topological_metrcis.py`
-
-### Data Pipeline
-
-- **Dataset**: Custom VessMapDataset for vessel images
-- **Transforms**: Augmentation and preprocessing
-- **Dataloaders**: Efficient batching and GPU transfer
-
-## Advanced Usage
-
-### Custom Loss Functions
-
-Add new losses by implementing the loss interface:
 
 ```python
-class MyLoss(nn.Module):
-    def forward(self, pred, target):
-        # Your loss computation
-        return loss_value
+import torch
+from topologysegmentation import DiceLoss, create_loss, loss_shapes, topology_errors
+
+logits = torch.randn(2, 1, 64, 64)   # frame (N, 1, H, W) or volume (N, 1, D, H, W)
+target = torch.zeros(2, 1, 64, 64)
+target[:, :, 16:48, 16:48] = 1
+
+dice = DiceLoss()
+cldice = create_loss("cldice")
+value = dice(logits, target) + 0.1 * cldice(logits, target)
+report = topology_errors(logits.sigmoid(), target)
+loss_shapes()   # {"dice": (2, 3), "sat": (2,), ...}
 ```
 
-### Custom Metrics
+Every loss applies sigmoid itself. Pass logits. `topology_errors` is eval-only and expects probabilities. Python 3.12 is required. `bm3d` needs a local build of [Betti-Matching-3D](https://github.com/nstucki/Betti-Matching-3D): put its `betti_matching` module on `PYTHONPATH`.
 
-Extend metrics by adding to the metrics classes:
-
-```python
-def my_metric(self, pred, target):
-    # Compute custom metric
-    return metric_value
-```
-
-### Hyperparameter Tuning
-
-Use the comparison framework to test different configurations:
-
-```python
-loss_configs = {
-    'config1': {'segmentation_loss': 'dice', 'learning_rate': 0.001},
-    'config2': {'segmentation_loss': 'bce', 'learning_rate': 0.0001},
-}
-```
-
-## Results and Analysis
-
-The pipeline automatically generates:
-- **Performance Rankings**: Best configurations by metric
-- **Convergence Analysis**: Training curves comparison
-- **Computational Analysis**: FLOPs and timing breakdowns
-- **Topological Analysis**: Structure preservation evaluation
-
-## Citation
-
-If you use this pipeline in your research, please cite:
-
-```
-@misc{vessmap-pipeline,
-  title={VessMAP Semantic Segmentation Pipeline},
-  author={Your Name},
-  year={2024},
-  url={https://github.com/your-repo}
-}
-```
-- Train models with multiple losses simultaneously
-- Automated comparison and reporting
-- Visualization of results
-
-### 5. **Advanced Evaluation**
-- Per-image metrics
-- Prediction visualization
-- Detailed performance reports
-- Comparison analysis across loss functions
+Third-party licenses are listed in [NOTICE](https://github.com/ProninEgorDm/TopologyLosses/blob/main/NOTICE). Training this repository is described in [QUICKSTART.md](https://github.com/ProninEgorDm/TopologyLosses/blob/main/QUICKSTART.md).
 
 ## Installation
 
-```bash
-# Install dependencies
-pip install torch torchvision
-pip install tensorboard tqdm pyyaml
-pip install scikit-learn scikit-image
-pip install monai
-pip install opencv-python tifffile
-pip install scipy numpy
-pip install matplotlib seaborn
-```
+The base package depends only on `torch` and `numpy`. Homology lives in the `ph` extra.
 
-## Configuration
+| Command | What you get |
+| --- | --- |
+| `pip install topologysegmentation` | `dice`, `bce`, `focal`, `combined`, `cldice`, `tloss`, `pooling`, `critical`, Dice/IoU, centerline Dice |
+| `pip install "topologysegmentation[ph]"` | also `hu`, `bm`, `sat`, and Betti numbers |
+| `pip install "topologysegmentation[plot]"` | plots for Betti matching |
+| `pip install "topologysegmentation[all]"` | both extras |
 
-Edit `configs/default_config.yaml`:
+## Shapes
 
-```yaml
-data:
-  dataset_path: '/path/to/VessMAP/'
-  image_size: 256
-  batch_size: 8
-  num_workers: 2
+A frame is `(N, 1, H, W)`. A volume is `(N, 1, D, H, W)`. One frame may be `(H, W)` or a channel-free batch `(N, H, W)`. A volume keeps the channel axis: `(D, H, W)` is read as a batch of frames. A side of length 1 is still that axis: a `1×N` strip is a frame, and a slab of depth 1 is a volume.
 
-model:
-  name: 'transunet'
-  in_channels: 1
-  out_channels: 128
+`loss_shapes()` maps each trainable name to the spatial ranks it accepts. `2` is a frame, `3` is a volume.
 
-training:
-  epochs: 100
-  learning_rate: 0.0003
-  device: 'cuda'  # or 'cpu'
-  checkpoint_dir: './checkpoints'
-  log_dir: './logs'
+| Ranks | Losses |
+| --- | --- |
+| 2 and 3 | `dice`, `bce`, `focal`, `combined`, `cldice`, `tloss`, `pooling`, `critical`, `hu`, `bm3d` |
+| 2 | `sat`, `bm` |
 
-loss:
-  segmentation_loss: 'focal'  # 'bce', 'dice', 'focal', 'combined'
-  topological_loss: None       # None, 'betti', 'voi', 'hausdorff', 'composite'
-  topological_weight: 0.1
-```
+`sat` and `bm` raise `ValueError` on a volume. For a volume, Betti matching is `bm3d`.
 
-## Usage
+## Losses
 
-### 1. Basic Training
+Every loss is called the same way: `create_loss(name)(logits, target)`.
 
-```bash
-# Train with default configuration
-python train.py --config configs/default_config.yaml
+| Name | What it does | Dependency | Weight next to Dice |
+| --- | --- | --- | --- |
+| `dice`, `bce`, `focal`, `combined` | Overlap and per-pixel losses. Any spatial rank | package | 1 |
+| `cldice` | Soft skeleton, Shit et al., [arXiv:2003.07311](https://arxiv.org/abs/2003.07311). Ten pooling iterations, frames and volumes | package | 0.1–0.3 |
+| `tloss` | Robust Student-t likelihood for a noisy mask, per voxel. `nu` is learned. Any shape | package | 0.1 |
+| `pooling` | Multi-scale occupancy after max-pooling. A frame adds two axis projections, a volume adds three | package | 1 |
+| `critical` | Endpoints, junctions, and isolated voxels. Eight neighbors on a frame, twenty-six on a volume | package | 1 |
+| `hu` | Diagram matching toward birth 1 and death 0, extra bars toward the diagonal. Hu et al., NeurIPS 2019. Frames and volumes | `ph` | 0.1 |
+| `bm` | Betti matching, Stucki et al., ICML 2023. Frames | `ph` | 0.1 |
+| `bm3d` | The same objective through the C++ extension. Frames and volumes | compiled `betti_matching` | 0.1 |
+| `sat` | Spatially aware diagram matching, divided by the image side length. Frames | `ph` | 0.1 |
 
-# Train with specific loss function
-# Modify configs/default_config.yaml first, then:
-python train.py --config configs/default_config.yaml
-```
+Foreground voxels that touch at a corner are one component. `betti_numbers` on a frame is `(β0, β1)`. On a volume it is `(β0, β1, β2)`. An empty mask is all zeros. A single foreground voxel is `(1, 0)` on a frame and `(1, 0, 0)` on a volume.
 
-### 2. Compare Multiple Loss Functions
+## Speed
 
-```bash
-# Train and compare multiple losses
-python train.py --config configs/default_config.yaml \
-                --compare dice,bce,focal,combined
+One CPU (Apple M1), forward and backward together. Frames are VessMAP labels (`annotator1`, native 256×256), resized with nearest-neighbor interpolation. The prediction is that same mask dilated by one pixel, with 12% of the vessel pixels removed, passed as logits ±4. A leading number is the batch: `3×1024²` is three such frames. `sat` and `bm` are frames only, so this table has no volumes.
 
-# Results will be saved to logs/loss_comparison.json
-```
+| Loss | 256² | 512² | 1024² | 3×1024² | 4×256² |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `dice` | 0.4 ms | 0.6 ms | 3.1 ms | 7.8 ms | 0.7 ms |
+| `bce` | 0.5 ms | 1.5 ms | 4.7 ms | 13 ms | 1.0 ms |
+| `focal` | 1.2 ms | 2.8 ms | 12 ms | 35 ms | 3.1 ms |
+| `combined` | 1.1 ms | 1.9 ms | 7.2 ms | 25 ms | 2.0 ms |
+| `tloss` | 0.6 ms | 1.0 ms | 3.2 ms | 8.7 ms | 0.8 ms |
+| `pooling` | 6.7 ms | 25 ms | 0.11 s | 0.15 s | 9.3 ms |
+| `critical` | 3.3 ms | 9.3 ms | 47 ms | 0.12 s | 7.7 ms |
+| `cldice` | 99 ms | 0.41 s | 1.9 s | 5.3 s | 0.32 s |
+| `hu` | 0.26 s | 1.1 s | 4.5 s | 14 s | 1.0 s |
+| `sat` | 0.24 s | 1.0 s | 4.2 s | 13 s | 0.98 s |
+| `bm` | 0.64 s | 4.4 s | 73 s | 4.8 min | 2.8 s |
 
-### 3. Resume Training
+These masks have a handful of components and loops (for example `(β0, β1)` of `(5, 0)`, `(4, 7)`, `(19, 4)`). Times up to 512² are the median of three passes. At 1024² and for `3×1024²`, `cldice`, `hu`, `sat`, and `bm` are one pass after a warmup.
 
-```bash
-# Resume from checkpoint
-python train.py --config configs/default_config.yaml \
-                --checkpoint checkpoints/best_model.pt
-```
+## Metrics
 
-### 4. Evaluate Model
+`dice_iou(probabilities, target)` returns per-batch Dice and IoU after a 0.5 threshold. Frames and volumes both work. On a mask compared with itself the score is 1, including a single voxel.
 
-```bash
-# Full evaluation
-python evaluate.py --checkpoint checkpoints/best_model.pt
+`centerline_dice(probabilities, target)` is the Dice score between morphological skeletons.
 
-# Generate prediction samples
-python evaluate.py --checkpoint checkpoints/best_model.pt \
-                   --generate-samples 10 \
-                   --sample-split test
+`betti_numbers(mask)` is `(β0, β1)` or `(β0, β1, β2)`. The binary count does not import `gudhi`. `hu` does, through the `ph` extra, because it needs the critical voxels of the diagram.
 
-# Compute per-image metrics
-python evaluate.py --checkpoint checkpoints/best_model.pt \
-                   --per-image-metrics
-```
+`topology_errors(probabilities, target)` reports the mean absolute Betti error (including `betti_b2_mae` on a volume), the centerline Dice, and a per-image breakdown. This is a validation report, not a loss. A frame does not grow a `β2` term when one side is 1; a one-slice volume does.
 
-### 5. Compare Loss Function Results
+## Citation
 
-```bash
-# Analyze loss comparison results
-python evaluate.py --compare-losses logs/loss_comparison.json
-```
-
-## Programmatic Usage
-
-```python
-from Train.pipeline import SegmentationPipeline
-
-# Create pipeline
-pipeline = SegmentationPipeline('configs/default_config.yaml')
-
-# Train
-pipeline.train()
-
-# Evaluate
-results = pipeline.evaluate(pipeline.test_loader)
-print(f"Test Dice: {results['metrics']['f1']:.4f}")
-print(f"Test IoU: {results['metrics']['iou']:.4f}")
-
-# Save and load checkpoints
-pipeline.load_checkpoint('checkpoints/best_model.pt')
-```
-
-## Training with Topological Losses
-
-To include topological losses in training:
-
-```yaml
-# configs/default_config.yaml
-loss:
-  segmentation_loss: 'dice'
-  topological_loss: 'betti'        # Enable Betti loss
-  topological_weight: 0.1           # Weight of topological loss
-```
-
-Combined loss = segmentation_loss + topological_weight * topological_loss
-
-Available topological losses:
-- `betti` - Basic Betti loss
-- `betti_matching` - Enhanced component matching
-- `voi` - Variation of Information
-- `hausdorff` - Hausdorff distance
-- `composite` - Combination of all topological losses
-
-## Output Structure
-
-```
-checkpoints/
-  checkpoint_epoch_000.pt    # Checkpoint every epoch
-  best_model.pt              # Best model on validation
-
-logs/
-  loss_comparison.json       # Loss comparison results
-  training_history.json      # Training metrics history
-  loss_<name>/
-    events.out.*             # TensorBoard logs
-  comparisons/
-    *.png                    # Comparison visualizations
-
-predictions/
-  test_sample_000.png        # Sample predictions
-  test_sample_001.png
-  ...
-```
-
-## Metrics Output
-
-### Training History (training_history.json)
-```json
-{
-  "train_loss": [...],
-  "val_loss": [...],
-  "train_metrics": {
-    "accuracy": [...],
-    "precision": [...],
-    "recall": [...],
-    "f1": [...],
-    "iou": [...]
-  },
-  "val_metrics": {
-    ...same structure...
-  }
-}
-```
-
-### Loss Comparison (loss_comparison.json)
-```json
-{
-  "dice": {
-    "test_loss": 0.123,
-    "test_metrics": {
-      "accuracy": 0.95,
-      "f1": 0.87,
-      "iou": 0.82,
-      ...
-    }
-  },
-  "bce": {...},
-  "focal": {...},
-  "combined": {...}
-}
-```
-
-## Advanced Features
-
-### Custom Loss Functions
-
-Extend the base loss classes:
-
-```python
-from losses.segmentation_losses import DiceLoss
-import torch.nn as nn
-
-class CustomLoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.dice = DiceLoss()
-    
-    def forward(self, pred, target):
-        # Custom loss computation
-        dice_loss = self.dice(pred, target)
-        # Add your custom logic
-        return dice_loss
-```
-
-### Custom Metrics
-
-```python
-from metrics.segmentation_metrics import SegmentationMetrics
-
-class CustomMetrics(SegmentationMetrics):
-    def compute(self):
-        metrics = super().compute()
-        # Add custom metrics
-        metrics['custom_metric'] = ...
-        return metrics
-```
-
-### Data Augmentation
-
-Modify transforms in `data/transforms.py`:
-
-```python
-def get_train_transforms(input_shape=(256, 256)):
-    return Compose([
-        # Add your custom transforms
-        ...
-    ])
-```
-
-## Troubleshooting
-
-### GPU Out of Memory
-- Reduce `batch_size` in config
-- Reduce `image_size`
-- Use gradient accumulation
-
-### Training Divergence
-- Lower `learning_rate`
-- Enable `topological_loss` to stabilize
-- Check data normalization
-
-### Poor Topology Preservation
-- Increase `topological_weight`
-- Use `composite` topological loss
-- Check skeletal structures in data
-
-## Performance Tips
-
-1. **Data Loading**: Use more `num_workers` for faster loading
-2. **Augmentation**: Enable augmentation only in training
-3. **Model Size**: Adjust `out_channels` based on memory
-4. **Loss Weighting**: Experiment with topological loss weights
-
-## References
-
-- Binary Cross-Entropy Loss
-- Dice Loss: Milletari et al., 2016
-- Focal Loss: Lin et al., 2017
-- Variation of Information: Meila, 2007
-- Hausdorff Distance: For boundary-based comparison
-- Betti Numbers: Topological data analysis
-
-## Directory Structure
-
-```
-TopologyLosses/
-├── Train/
-│   └── pipeline.py          # Main pipeline
-├── data/
-│   ├── dataset.py           # Dataset class
-│   └── transforms.py        # Data augmentation
-├── models/
-│   ├── TransUnet.py
-│   ├── vit.py
-│   └── attention.py
-├── losses/
-│   ├── segmentation_losses/
-│   │   └── losses.py
-│   └── topological_losses/
-│       └── losses.py
-├── metrics/
-│   ├── segmentation_metrics.py
-│   └── topological_metrcis.py
-├── configs/
-│   └── default_config.yaml
-├── train.py                 # Training entry point
-├── evaluate.py              # Evaluation entry point
-├── USAGE_EXAMPLES.py        # Example usage
-└── checkpoints/             # Saved models
-```
-
-## Future Extensions
-
-- [ ] 3D vessel segmentation
-- [ ] Multi-annotator consensus
-- [ ] Confidence calibration
-- [ ] Uncertainty estimation
-- [ ] Multi-task learning (vessel + bifurcation detection)
-- [ ] Active learning pipeline
+GitHub shows a “Cite this repository” button from [`CITATION.cff`](https://github.com/ProninEgorDm/TopologyLosses/blob/main/CITATION.cff). If you use a bundled loss in a paper, also cite the paper in the table above.
 
 ## License
 
-Project specific license
-
-## Contact
-
-For questions or issues, contact the development team.
+Original code is MIT, see [LICENSE](https://github.com/ProninEgorDm/TopologyLosses/blob/main/LICENSE). T-Loss stays under Apache-2.0, so the package license expression is `MIT AND Apache-2.0`. The file table is in [NOTICE](https://github.com/ProninEgorDm/TopologyLosses/blob/main/NOTICE).

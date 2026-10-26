@@ -1,246 +1,68 @@
-QUICK START GUIDE - VessMAP Semantic Segmentation Pipeline
-===========================================================
+# Быстрый старт
 
-This guide will help you get started with training and evaluating models
-on the VessMAP vessel segmentation dataset.
-"""
+Две разные установки. Колесо с PyPI — это лоссы. Команды `train.py` есть только в клоне репозитория.
 
-# ============================================================================
-# STEP 1: VERIFY SETUP
-# ============================================================================
+## Пакет
 
-"""
-Before training, verify that all dependencies are installed and configured:
+Нужен Python 3.12.
 
-$ python verify_setup.py
+```bash
+pip install topologysegmentation
+pip install "topologysegmentation[ph]"
+```
 
-This will check:
-- All required Python packages
-- Project structure and files
-- Configuration file validity
-- Dataset availability
-- GPU support
-"""
+Первая команда ставит Dice, clDice, T-Loss, `pooling` и `critical`. Вторая добавляет `gudhi`, `pot` и `torch-topological` для `hu`, `bm`, `sat` и чисел Бетти.
 
-# ============================================================================
-# STEP 2: BASIC TRAINING
-# ============================================================================
+```python
+from topologysegmentation import DiceLoss, create_loss, loss_shapes
 
-"""
-Train a model with the default configuration:
+# Кадр (N, 1, H, W) или объём (N, 1, D, H, W). Сигмоида считается внутри лосса.
+loss = DiceLoss()(logits, target) + 0.1 * create_loss("cldice")(logits, target)
+loss_shapes()  # у каждого имени набор размерностей: 2 — кадр, 3 — объём
+```
 
-$ python train.py --config configs/default_config.yaml
+`dice`, `bce`, `focal`, `combined`, `cldice`, `tloss`, `pooling`, `critical`, `hu` и `bm3d` принимают кадр и объём. `sat` и `bm` только кадр: на объёме они бросают `ValueError`, для объёма есть `bm3d`. Тензор `(D, H, W)` без канала читается как батч плоских кадров.
 
-This will:
-- Load the VessMAP dataset
-- Initialize the TransUNet model
-- Train for 100 epochs (configurable)
-- Save checkpoints and logs
-- Output metrics every epoch
+`betti_numbers` на кадре возвращает `(β0, β1)`, на объёме `(β0, β1, β2)`. При первом вызове, если найден `clang`, `cc` или `gcc`, собирается `cubical_betti.c` из колеса. Без компилятора считается запасной путь на NumPy. `TOPOLOGYSEGMENTATION_NATIVE=0` оставляет только его. `bm` так же собирает `cubical_matching.c`; `TOPOLOGYSEGMENTATION_MATCHING=0` оставляет для него питоновские циклы.
 
-Configuration can be modified in configs/default_config.yaml
-"""
+Скорость на текущей машине, вместе с backward:
 
-# ============================================================================
-# STEP 3: COMPARE DIFFERENT LOSS FUNCTIONS
-# ============================================================================
+```bash
+python tests/bench_losses.py
+```
 
-"""
-Compare performance of multiple loss functions:
+`bm3d` этой командой не ставится. Расширение `betti_matching` собирается из [Betti-Matching-3D](https://github.com/nstucki/Betti-Matching-3D), каталог `build` добавляется в `PYTHONPATH`.
 
-$ python train.py --config configs/default_config.yaml \
-                  --compare dice,bce,focal,combined
+Полный список лоссов, весов и лицензий — в [README.md](README.md).
 
-This will:
-- Train separate models for each loss function
-- Compare results on test set
-- Generate comparison report: logs/loss_comparison.json
-- Create visualizations
+## Клон репозитория
 
-Available losses:
-- dice: Dice Loss
-- bce: Binary Cross-Entropy
-- focal: Focal Loss
-- combined: BCE + Dice (weighted)
-"""
+`uv sync` ставит пакет в окружение `.venv` и группу `dev` из `pyproject.toml`: трансформер, чтение кадров, тензорборд. Эти пакеты в колесо не входят.
 
-# ============================================================================
-# STEP 4: INCLUDE TOPOLOGICAL LOSSES
-# ============================================================================
+```bash
+uv sync
+python tests/test_contract.py
+python train.py --config configs/experiments/dice.yaml --max-steps 1 --image-size 64 --batch-size 2 --epochs 1
+```
 
-"""
-To preserve vessel topology during training, modify configs/default_config.yaml:
+Полный прогон:
 
-loss:
-  segmentation_loss: 'dice'
-  topological_loss: 'betti'      # Enable Betti loss
-  topological_weight: 0.1         # Weight of topological component
+```bash
+python train.py --config configs/experiments/dice.yaml
+```
 
-Available topological losses:
-- betti: Basic Betti number loss
-- betti_matching: Enhanced component matching
-- voi: Variation of Information
-- hausdorff: Hausdorff distance
-- composite: Combination of all
-"""
+Сравнение конфигов из списка `DEFAULT_CONFIGS` в `experiments/sweep.py`:
 
-# ============================================================================
-# STEP 5: EVALUATE TRAINED MODEL
-# ============================================================================
+```bash
+python train.py sweep --max-steps 1 --image-size 64 --batch-size 2
+```
 
-"""
-Evaluate a trained model on test set:
+Согласие двух аннотаторов на общих кадрах:
 
-$ python evaluate.py --checkpoint checkpoints/best_model.pt
+```bash
+python train.py agreement
+```
 
-This will:
-- Compute metrics on all splits
-- Generate evaluation report
-- Save results to JSON file
+Кадры VessMAP лежат в `src/VessMAP` и в git не входят. Сплит с сидом 42 — `splits/vessmap_seed42.json`: 80 обучающих, 12 валидационных, 8 тестовых. Каталог прогона `runs/<время>_<имя>/` содержит копию конфига, сплит, `history.json` и `checkpoints/best.pt`. Поле `parts` в истории — уже взвешенный вклад каждого лосса.
 
-Generate prediction visualizations:
-
-$ python evaluate.py --checkpoint checkpoints/best_model.pt \
-                     --generate-samples 20 \
-                     --sample-split test
-
-This creates 20 sample visualizations in predictions/ folder
-"""
-
-# ============================================================================
-# STEP 6: ANALYZE LOSS COMPARISON RESULTS
-# ============================================================================
-
-"""
-After running loss comparison, analyze the results:
-
-$ python evaluate.py --compare-losses logs/loss_comparison.json
-
-This will:
-- Print comparison summary
-- Create comparison visualization
-- Identify best performing loss
-"""
-
-# ============================================================================
-# PROGRAMMATIC USAGE
-# ============================================================================
-
-"""
-Use the pipeline directly in Python code:
-
-from Train.pipeline import SegmentationPipeline
-
-# Create and train pipeline
-pipeline = SegmentationPipeline('configs/default_config.yaml')
-pipeline.train()
-
-# Evaluate on test set
-results = pipeline.evaluate(pipeline.test_loader)
-
-# Access metrics
-test_dice = results['metrics']['f1']
-test_iou = results['metrics']['iou']
-"""
-
-# ============================================================================
-# INTERACTIVE NOTEBOOK
-# ============================================================================
-
-"""
-For interactive exploration and experimentation:
-
-jupyter notebook pipeline_tutorial.ipynb
-
-This notebook includes:
-- Data loading and visualization
-- Model initialization
-- Training loop demonstration
-- Metrics computation
-- Results visualization
-- Loss comparison
-"""
-
-# ============================================================================
-# KEY OUTPUT FILES
-# ============================================================================
-
-"""
-After training, you'll find:
-
-checkpoints/
-  - best_model.pt              # Best model on validation
-  - checkpoint_epoch_*.pt      # Checkpoints every epoch
-
-logs/
-  - loss_comparison.json       # Loss comparison results
-  - training_history.json      # Training metrics history
-  - loss_<name>/events.*       # TensorBoard logs
-
-predictions/
-  - test_sample_*.png          # Generated predictions
-
-evaluation_report.json         # Detailed evaluation metrics
-"""
-
-# ============================================================================
-# COMMON CONFIGURATIONS
-# ============================================================================
-
-"""
-Minimal (Quick Testing):
-  epochs: 5
-  batch_size: 16
-  image_size: 128
-  
-Balanced (Standard):
-  epochs: 100
-  batch_size: 8
-  image_size: 256
-  
-High Quality (Large GPU):
-  epochs: 200
-  batch_size: 4
-  image_size: 512
-
-Edit configs/default_config.yaml to change these settings.
-"""
-
-# ============================================================================
-# TROUBLESHOOTING
-# ============================================================================
-
-"""
-GPU out of memory?
-- Reduce batch_size
-- Reduce image_size
-- Reduce out_channels
-
-Poor vessel topology?
-- Add topological_loss to config
-- Increase topological_weight
-- Use 'composite' topological loss
-
-Training not converging?
-- Lower learning_rate
-- Use different loss function
-- Check data normalization
-- Enable topological regularization
-
-For more detailed troubleshooting, see README.md
-"""
-
-# ============================================================================
-# NEXT STEPS
-# ============================================================================
-
-"""
-1. Run verify_setup.py to ensure everything is installed
-2. Read README.md for comprehensive documentation
-3. Check pipeline_tutorial.ipynb for interactive examples
-4. Start with basic training on small dataset (5 epochs)
-5. Compare different loss functions
-6. Evaluate best model and analyze predictions
-7. Fine-tune configuration for your specific needs
-8. Implement custom losses or metrics if needed
-"""
+Конфиги новых лоссов: `configs/experiments/dice_hu.yaml`, `dice_pooling.yaml`, `dice_critical.yaml`. Веса там уже подобраны под масштаб лосса, см. таблицу в README.

@@ -1,0 +1,39 @@
+topologysegmentation
+Copyright (c) 2026 proninegor
+
+This product bundles third-party losses. Each file keeps its own copyright
+header. The project license (MIT, see LICENSE) covers the original code.
+The bundled Apache-2.0 file remains under Apache-2.0.
+
+Apache-2.0
+  src/topologysegmentation/losses/vendor/tloss/tloss.py
+  Copyright 2023 University of Basel and Lucerne University of Applied
+  Sciences and Arts Authors
+  https://github.com/Digital-Dermatology/t-loss
+  The license text is in src/topologysegmentation/losses/vendor/tloss/LICENSE
+
+MIT
+  src/topologysegmentation/losses/vendor/cldice/
+  Suprosanna Shit, Johannes C. Paetzold et al.
+  https://github.com/jocpae/clDice
+  https://arxiv.org/abs/2003.07311
+
+  src/topologysegmentation/losses/vendor/bm/
+  Nico Stucki, Johannes C. Paetzold, Suprosanna Shit, Bjoern Menze, Ulrich Bauer
+  https://github.com/nstucki/Betti-matching
+  https://proceedings.mlr.press/v202/stucki23a
+
+  src/topologysegmentation/losses/vendor/sat/
+  Bo Wen, Haochen Zhang, Dirk-Uwe G. Bartsch, William R. Freeman,
+  Truong Q. Nguyen, Cheolhong An
+  https://github.com/JRC-VPLab/SATLoss
+  https://arxiv.org/abs/2412.02076
+  Cubical persistence in this folder is adapted from torch-topological
+  (https://github.com/aidos-lab/pytorch-topological) and calls GUDHI.
+
+Not included in the wheel
+  src/topologysegmentation/losses/vendor/gd/ has no license grant in the source
+  file, so it is not packaged. It is an unregistered 3D Generalized Dice
+  (Sudre et al., https://arxiv.org/abs/1707.03237).
+  The C++ extension for bm3d is not vendored. Build
+  https://github.com/nstucki/Betti-Matching-3D (MIT) separately.
