@@ -1,6 +1,7 @@
 # topologysegmentation
 
 [![PyPI](https://img.shields.io/badge/pypi-topologysegmentation-3775A9)](https://pypi.org/project/topologysegmentation)
+[![Documentation](https://img.shields.io/badge/docs-readthedocs-8CA1AF)](https://topologylosses.readthedocs.io)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/pytorch-2.2%2B-EE4C2C)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/license-MIT%20%2B%20Apache--2.0-green)](https://github.com/ProninEgorDm/TopologyLosses/blob/main/LICENSE)
@@ -15,7 +16,7 @@ PyTorch losses and metrics for topology-aware segmentation. Overlap losses stay 
 | Wen et al., [SAT](https://arxiv.org/abs/2412.02076) | `sat` |
 | González-Jiménez et al., [T-Loss](https://github.com/Digital-Dermatology/t-loss) | `tloss` |
 
-The package is on PyPI: [pypi.org/project/topologysegmentation](https://pypi.org/project/topologysegmentation).
+The package is on PyPI: [pypi.org/project/topologysegmentation](https://pypi.org/project/topologysegmentation). Class and parameter reference: [topologylosses.readthedocs.io](https://topologylosses.readthedocs.io).
 
 ```bash
 pip install topologysegmentation          # Dice, clDice, pooling, critical points, T-Loss
@@ -68,7 +69,7 @@ A frame is `(N, 1, H, W)`. A volume is `(N, 1, D, H, W)`. One frame may be `(H, 
 
 Each loss is its own class. Call `Loss(logits, target)`. A one-off mix is ordinary addition, `DiceLoss()(logits, target) + 0.1 * CLDiceLoss()(logits, target)`. `SumLoss` is that sum as one module: the forward returns a scalar, `parts` holds the weighted terms, and `weights["cldice"] = 0.2` changes a weight. A weight of `0` skips that term.
 
-What each class computes, and what each parameter changes, is written out in [Losses](docs/source/losses.rst).
+What each class computes, and what each parameter changes, is written out in [Losses](https://topologylosses.readthedocs.io/en/latest/losses.html).
 
 | Name | What it does | Dependency | Weight next to Dice |
 | --- | --- | --- | --- |
