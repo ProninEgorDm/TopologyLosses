@@ -4,6 +4,9 @@ topologysegmentation
 PyTorch losses and metrics for topology-aware segmentation. Each loss is a
 class. :doc:`losses` lists every class and the meaning of its parameters.
 
+`Repository <https://github.com/ProninEgorDm/TopologyLosses>`_ ·
+`PyPI <https://pypi.org/project/topologysegmentation>`_
+
 Install::
 
    pip install topologysegmentation
