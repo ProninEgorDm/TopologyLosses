@@ -1,5 +1,6 @@
 # topologysegmentation
 
+[![PyPI](https://img.shields.io/badge/pypi-topologysegmentation-3775A9)](https://pypi.org/project/topologysegmentation)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/pytorch-2.2%2B-EE4C2C)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/license-MIT%20%2B%20Apache--2.0-green)](https://github.com/ProninEgorDm/TopologyLosses/blob/main/LICENSE)
@@ -13,6 +14,8 @@ PyTorch losses and metrics for topology-aware segmentation. Overlap losses stay 
 | Stucki et al., [Betti matching, ICML 2023](https://proceedings.mlr.press/v202/stucki23a) | `bm`, `bm3d` |
 | Wen et al., [SAT](https://arxiv.org/abs/2412.02076) | `sat` |
 | González-Jiménez et al., [T-Loss](https://github.com/Digital-Dermatology/t-loss) | `tloss` |
+
+The package is on PyPI: [pypi.org/project/topologysegmentation](https://pypi.org/project/topologysegmentation).
 
 ```bash
 pip install topologysegmentation          # Dice, clDice, pooling, critical points, T-Loss

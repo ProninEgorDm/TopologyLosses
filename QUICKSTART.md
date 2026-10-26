@@ -6,6 +6,8 @@
 
 Нужен Python 3.12.
 
+Пакет: [pypi.org/project/topologysegmentation](https://pypi.org/project/topologysegmentation).
+
 ```bash
 pip install topologysegmentation
 pip install "topologysegmentation[ph]"

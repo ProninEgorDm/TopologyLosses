@@ -51,6 +51,7 @@ all = [
 Homepage = "https://github.com/ProninEgorDm/TopologyLosses"
 Repository = "https://github.com/ProninEgorDm/TopologyLosses"
 Issues = "https://github.com/ProninEgorDm/TopologyLosses/issues"
+PyPI = "https://pypi.org/project/topologysegmentation"
 
 # Версия пакета — одна строка в src/topologysegmentation/VERSION.
 # Файл читается при сборке без импорта torch.
