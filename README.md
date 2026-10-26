@@ -39,7 +39,7 @@ loss_shapes()   # {"dice": (2, 3), "sat": (2,), ...}
 
 Every loss applies sigmoid itself. Pass logits. `topology_errors` is eval-only and expects probabilities. Python 3.12 is required. `bm3d` needs a local build of [Betti-Matching-3D](https://github.com/nstucki/Betti-Matching-3D): put its `betti_matching` module on `PYTHONPATH`.
 
-Third-party licenses are listed in [NOTICE](https://github.com/ProninEgorDm/TopologyLosses/blob/main/NOTICE). Training this repository is described in [QUICKSTART.md](https://github.com/ProninEgorDm/TopologyLosses/blob/main/QUICKSTART.md).
+Third-party licenses are listed in [NOTICE](https://github.com/ProninEgorDm/TopologyLosses/blob/main/NOTICE). A short install walkthrough is in [QUICKSTART.md](https://github.com/ProninEgorDm/TopologyLosses/blob/main/QUICKSTART.md).
 
 ## Installation
 

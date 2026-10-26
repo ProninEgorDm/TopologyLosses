@@ -29,3 +29,23 @@ dist/
 
 # Кэш локальной компиляции cubical_betti.c. В колесе лежит исходник, не библиотека.
 .cache/
+*.dylib
+*.so
+
+# Редакторы и покрытие тестов.
+.idea/
+.vscode/
+.coverage
+htmlcov/
+
+# Обучение, тесты и заметки разработчика. Пользователю пакета они не нужны.
+/experiments/
+/configs/
+/splits/
+/tests/
+/train.py
+/run_full_pipeline.py
+/Hubs.md
+/RELEASING.md
+/uv.lock
+/.python-version
