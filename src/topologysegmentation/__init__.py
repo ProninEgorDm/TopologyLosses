@@ -8,19 +8,42 @@ from pathlib import Path
 
 __version__ = Path(__file__).with_name("VERSION").read_text(encoding="utf-8").strip()
 
-from topologysegmentation.losses.registry import available_losses, create_loss, loss_shapes
-from topologysegmentation.losses.segmentation import BCELoss, CombinedLoss, DiceLoss, FocalLoss
+from topologysegmentation.losses import (
+    BCELoss,
+    BettiMatching3DLoss,
+    BettiMatchingLoss,
+    CLDiceLoss,
+    CombinedLoss,
+    CriticalPointLoss,
+    DiceLoss,
+    FocalLoss,
+    HuTopoLoss,
+    ProjectedPoolingLoss,
+    SATLoss,
+    SumLoss,
+    TLoss,
+    available_losses,
+    loss_shapes,
+)
 from topologysegmentation.metrics import betti_numbers, centerline_dice, dice_iou, topology_errors
 
 __all__ = [
     "BCELoss",
+    "BettiMatching3DLoss",
+    "BettiMatchingLoss",
+    "CLDiceLoss",
     "CombinedLoss",
+    "CriticalPointLoss",
     "DiceLoss",
     "FocalLoss",
+    "HuTopoLoss",
+    "ProjectedPoolingLoss",
+    "SATLoss",
+    "SumLoss",
+    "TLoss",
     "available_losses",
     "betti_numbers",
     "centerline_dice",
-    "create_loss",
     "dice_iou",
     "loss_shapes",
     "topology_errors",

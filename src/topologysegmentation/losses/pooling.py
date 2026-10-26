@@ -17,12 +17,23 @@ import torch.nn.functional as F
 from torch import nn
 
 from topologysegmentation.losses.common import align_pair
+from topologysegmentation.losses.registry import register
 
 
+@register
 class ProjectedPoolingLoss(nn.Module):
+    """Multi-scale occupancy after max-pooling. ``sigmoid=False`` reads probabilities."""
+
+    name = "pooling"
+    spatial = (2, 3)
+
+    def __init__(self, sigmoid: bool = True):
+        super().__init__()
+        self.sigmoid = sigmoid
+
     def forward(self, logits, target, skeleton=None):
         logits, target = align_pair(logits, target)
-        probabilities = torch.sigmoid(logits)
+        probabilities = torch.sigmoid(logits) if self.sigmoid else logits
         if probabilities.ndim == 5:
             prediction, truth = _describe_volume(probabilities), _describe_volume(target)
         else:

@@ -124,17 +124,18 @@ def _spatial(tensor: torch.Tensor) -> torch.Tensor:
 class BettiMatching3DLoss(nn.Module):
     """Logits in, Betti matching loss out. Requires the ``betti_matching`` extension."""
 
-    def __init__(self, filtration: str = "superlevel"):
+    def __init__(self, filtration: str = "superlevel", sigmoid: bool = True):
         super().__init__()
         if filtration not in {"superlevel", "sublevel"}:
             raise ValueError("filtration must be 'superlevel' or 'sublevel'.")
         import betti_matching
 
         self.filtration = filtration
+        self.sigmoid = bool(sigmoid)
         self._backend = betti_matching
 
     def forward(self, logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        probabilities = torch.sigmoid(logits)
+        probabilities = torch.sigmoid(logits) if self.sigmoid else logits
         losses = []
         for prediction, truth in zip(probabilities, target):
             prediction = _spatial(prediction)

@@ -11,24 +11,43 @@ the birth and death pixels of those bars.
 import torch
 import torch.nn as nn
 
-from topologysegmentation.losses.common import align_pair
+from topologysegmentation.losses.common import align_pair, reduce_loss
+from topologysegmentation.losses.registry import register
 from topologysegmentation.persistence import cubical_bars
 
 
+@register
 class HuTopoLoss(nn.Module):
-    def __init__(self, threshold: float = 0.5, epsilon: float = 1e-6):
+    """Diagram matching on critical pixels, Hu et al., NeurIPS 2019.
+
+    ``threshold`` decides which ground-truth bars are features to keep.
+    ``sigmoid=False`` reads probabilities. ``reduction`` combines the images.
+    """
+
+    name = "hu"
+    spatial = (2, 3)
+
+    def __init__(
+        self,
+        threshold: float = 0.5,
+        epsilon: float = 1e-6,
+        sigmoid: bool = True,
+        reduction: str = "mean",
+    ):
         super().__init__()
         self.threshold = float(threshold)
         self.epsilon = float(epsilon)
+        self.sigmoid = sigmoid
+        self.reduction = reduction
 
     def forward(self, logits, target, skeleton=None):
         logits, target = align_pair(logits, target)
-        probabilities = torch.sigmoid(logits)
+        probabilities = torch.sigmoid(logits) if self.sigmoid else logits
         values = [
             self._one(probability.squeeze(0), truth.squeeze(0))
             for probability, truth in zip(probabilities, target)
         ]
-        return torch.stack(values).mean()
+        return reduce_loss(torch.stack(values), self.reduction)
 
     def _one(self, probability: torch.Tensor, truth: torch.Tensor) -> torch.Tensor:
         predicted = cubical_bars(probability.detach().cpu().numpy(), epsilon=self.epsilon)

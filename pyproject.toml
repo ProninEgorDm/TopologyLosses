@@ -26,6 +26,8 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2.2",
+    "sphinx>=9.1.1",
+    "sphinx-rtd-theme>=3.1.0",
     "torch>=2.2",
 ]
 

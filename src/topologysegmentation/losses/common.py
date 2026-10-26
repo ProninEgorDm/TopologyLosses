@@ -28,6 +28,57 @@ def align_pair(logits: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor
     return logits, target.to(device=logits.device, dtype=logits.dtype)
 
 
+def prepare_pair(prediction: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Like :func:`align_pair`, but every channel is kept.
+
+    A multi-class prediction is ``(N, C, H, W)`` or ``(N, C, D, H, W)``. The
+    target may use the same channels or a single channel (a label map).
+    """
+    prediction = _with_batch_and_channel(prediction)
+    target = _with_batch_and_channel(target)
+    if prediction.ndim not in (4, 5) or prediction.ndim != target.ndim:
+        raise ValueError(
+            f"Expected matching 2D (N, C, H, W) or 3D (N, C, D, H, W) tensors, "
+            f"got {tuple(prediction.shape)} and {tuple(target.shape)}"
+        )
+    if prediction.shape[0] != target.shape[0] or prediction.shape[2:] != target.shape[2:]:
+        raise ValueError(
+            f"Prediction and target differ in batch or spatial size: "
+            f"{tuple(prediction.shape)} vs {tuple(target.shape)}"
+        )
+    if target.shape[1] not in (1, prediction.shape[1]):
+        raise ValueError(
+            f"Target has {target.shape[1]} channels and the prediction has {prediction.shape[1]}. "
+            "Use the same channels, or a one-channel label map."
+        )
+    return prediction, target.to(device=prediction.device, dtype=prediction.dtype)
+
+
+def reduce_loss(value: torch.Tensor, reduction: str) -> torch.Tensor:
+    """``mean``, ``sum``, or ``none`` over every remaining element."""
+    if reduction == "mean":
+        return value.mean()
+    if reduction == "sum":
+        return value.sum()
+    if reduction == "none":
+        return value
+    raise ValueError(f"reduction must be 'mean', 'sum', or 'none', got {reduction!r}.")
+
+
+def masked_reduction(value: torch.Tensor, valid: torch.Tensor | None, reduction: str) -> torch.Tensor:
+    """Reduce a per-voxel map. ``valid`` is 1 on voxels that count."""
+    if valid is None:
+        return reduce_loss(value, reduction)
+    value = value * valid
+    if reduction == "sum":
+        return value.sum()
+    if reduction == "none":
+        return value
+    if reduction == "mean":
+        return value.sum() / valid.sum().clamp(min=1).to(dtype=value.dtype)
+    raise ValueError(f"reduction must be 'mean', 'sum', or 'none', got {reduction!r}.")
+
+
 def _with_batch_and_channel(tensor: torch.Tensor) -> torch.Tensor:
     if tensor.ndim == 2:
         return tensor.unsqueeze(0).unsqueeze(0)

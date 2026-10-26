@@ -24,20 +24,19 @@ pip install "topologysegmentation[ph]"    # also Hu, Betti matching, and SAT
 
 ```python
 import torch
-from topologysegmentation import DiceLoss, create_loss, loss_shapes, topology_errors
+from topologysegmentation import CLDiceLoss, DiceLoss, SumLoss, loss_shapes, topology_errors
 
 logits = torch.randn(2, 1, 64, 64)   # frame (N, 1, H, W) or volume (N, 1, D, H, W)
 target = torch.zeros(2, 1, 64, 64)
 target[:, :, 16:48, 16:48] = 1
 
-dice = DiceLoss()
-cldice = create_loss("cldice")
-value = dice(logits, target) + 0.1 * cldice(logits, target)
+criterion = SumLoss((DiceLoss(), 1.0), (CLDiceLoss(), 0.1))
+value = criterion(logits, target)    # one scalar; criterion.parts has each term
 report = topology_errors(logits.sigmoid(), target)
 loss_shapes()   # {"dice": (2, 3), "sat": (2,), ...}
 ```
 
-Every loss applies sigmoid itself. Pass logits. `topology_errors` is eval-only and expects probabilities. Python 3.12 is required. `bm3d` needs a local build of [Betti-Matching-3D](https://github.com/nstucki/Betti-Matching-3D): put its `betti_matching` module on `PYTHONPATH`.
+By default every loss applies sigmoid. Pass logits, or set `sigmoid=False` when the tensor is already a probability. `topology_errors` is eval-only and expects probabilities. Python 3.12 is required. `bm3d` needs a local build of [Betti-Matching-3D](https://github.com/nstucki/Betti-Matching-3D): put its `betti_matching` module on `PYTHONPATH`.
 
 Third-party licenses are listed in [NOTICE](https://github.com/ProninEgorDm/TopologyLosses/blob/main/NOTICE). A short install walkthrough is in [QUICKSTART.md](https://github.com/ProninEgorDm/TopologyLosses/blob/main/QUICKSTART.md).
 
@@ -67,7 +66,9 @@ A frame is `(N, 1, H, W)`. A volume is `(N, 1, D, H, W)`. One frame may be `(H, 
 
 ## Losses
 
-Every loss is called the same way: `create_loss(name)(logits, target)`.
+Each loss is its own class. Call `Loss(logits, target)`. A one-off mix is ordinary addition, `DiceLoss()(logits, target) + 0.1 * CLDiceLoss()(logits, target)`. `SumLoss` is that sum as one module: the forward returns a scalar, `parts` holds the weighted terms, and `weights["cldice"] = 0.2` changes a weight. A weight of `0` skips that term.
+
+What each class computes, and what each parameter changes, is written out in [Losses](docs/source/losses.rst).
 
 | Name | What it does | Dependency | Weight next to Dice |
 | --- | --- | --- | --- |

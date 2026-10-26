@@ -12,10 +12,10 @@ pip install "topologysegmentation[ph]"
 Первая команда ставит Dice, clDice, T-Loss, `pooling` и `critical`. Вторая добавляет `gudhi`, `pot` и `torch-topological` для `hu`, `bm`, `sat` и чисел Бетти.
 
 ```python
-from topologysegmentation import DiceLoss, create_loss, loss_shapes
+from topologysegmentation import CLDiceLoss, DiceLoss, SumLoss, loss_shapes
 
 # Кадр (N, 1, H, W) или объём (N, 1, D, H, W). Сигмоида считается внутри лосса.
-loss = DiceLoss()(logits, target) + 0.1 * create_loss("cldice")(logits, target)
+loss = SumLoss((DiceLoss(), 1.0), (CLDiceLoss(), 0.1))(logits, target)
 loss_shapes()  # у каждого имени набор размерностей: 2 — кадр, 3 — объём
 ```
 
@@ -25,4 +25,4 @@ loss_shapes()  # у каждого имени набор размерносте�
 
 `bm3d` через pip не ставится. Расширение `betti_matching` собирается из [Betti-Matching-3D](https://github.com/nstucki/Betti-Matching-3D), каталог `build` добавляется в `PYTHONPATH`.
 
-Полный список лоссов, весов и лицензий — в [README.md](README.md).
+Классы и смысл каждого параметра — в [docs/source/losses.rst](docs/source/losses.rst). Краткий список весов и лицензии — в [README.md](README.md).

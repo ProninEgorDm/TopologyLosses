@@ -1,23 +1,9 @@
-"""Name-to-loss registry. Importing this module does not import vendor code."""
-
-from dataclasses import dataclass
-from typing import Callable
+"""Short name of each loss class. Importing this module does not import vendor code."""
 
 import torch.nn as nn
 
 
-@dataclass(frozen=True)
-class LossSpec:
-    name: str
-    builder: Callable[..., nn.Module]
-    expects: str
-    differentiable: bool
-    needs_skeleton: bool = False
-    # Spatial rank: 2 is (N, 1, H, W), 3 is (N, 1, D, H, W).
-    spatial: tuple[int, ...] = (2, 3)
-
-
-REGISTRY: dict[str, LossSpec] = {}
+REGISTRY: dict[str, type[nn.Module]] = {}
 
 METRIC_ONLY = {
     "betti",
@@ -28,8 +14,10 @@ METRIC_ONLY = {
 }
 
 
-def register(spec: LossSpec) -> None:
-    REGISTRY[spec.name] = spec
+def register(cls):
+    """Record a loss class. The class carries ``name`` and ``spatial``."""
+    REGISTRY[cls.name] = cls
+    return cls
 
 
 def available_losses() -> list[str]:
@@ -44,6 +32,12 @@ def loss_shapes() -> dict[str, tuple[int, ...]]:
 
 
 def create_loss(name: str, **kwargs) -> nn.Module:
+    """Build a loss from its short name.
+
+    The classes are the supported way to construct a loss. This lookup exists
+    so a config file can still name ``dice`` or ``cldice``. ``device`` and
+    ``image_size`` are ignored: the tensors decide both.
+    """
     _ensure_registered()
     key = name.strip().lower()
     if key in METRIC_ONLY:
@@ -53,9 +47,14 @@ def create_loss(name: str, **kwargs) -> nn.Module:
         )
     if key not in REGISTRY:
         raise ValueError(f"Unknown loss '{name}'. Available: {sorted(REGISTRY)}")
-    return REGISTRY[key].builder(**kwargs)
+    kwargs.pop("device", None)
+    kwargs.pop("image_size", None)
+    return REGISTRY[key](**kwargs)
 
 
 def _ensure_registered() -> None:
+    import topologysegmentation.losses.critical  # noqa: F401
+    import topologysegmentation.losses.hu  # noqa: F401
+    import topologysegmentation.losses.pooling  # noqa: F401
     import topologysegmentation.losses.segmentation  # noqa: F401
     import topologysegmentation.losses.topology  # noqa: F401
